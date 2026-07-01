@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SyntaxShift – AI Code Converter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet" />
+<style>
+/* ─── TOKENS ─────────────────────────────────────────────── */
+:root {
+  --bg: #060812;
+  --bg2: #0b0f1e;
+  --surface: rgba(255,255,255,0.04);
+  --border: rgba(100,120,255,0.18);
+  --border-hi: rgba(100,120,255,0.5);
+  --text: #e8eaf6;
+  --muted: #6b7280;
+  --accent1: #5b8cff;
+  --accent2: #a855f7;
+  --accent3: #06b6d4;
+  --glow1: rgba(91,140,255,0.35);
+  --glow2: rgba(168,85,247,0.25);
+  --code-bg: #080c1a;
+  --radius: 16px;
+  --font-ui: 'Syne', sans-serif;
+  --font-code: 'JetBrains Mono', monospace;
+}
+[data-theme="light"] {
+  --bg: #f0f2ff;
+  --bg2: #e8ebff;
+  --surface: rgba(255,255,255,0.7);
+  --border: rgba(91,140,255,0.25);
+  --border-hi: rgba(91,140,255,0.55);
+  --text: #0f172a;
+  --muted: #64748b;
+  --glow1: rgba(91,140,255,0.2);
+  --glow2: rgba(168,85,247,0.15);
+  --code-bg: #ffffff;
+}
+
+/* ─── RESET ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  overflow-x: hidden;
+  transition: background 0.4s, color 0.4s;
+}
+
+/* ─── GRID BG ────────────────────────────────────────────── */
+.grid-bg {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+  opacity: 0.35;
+}
+[data-theme="light"] .grid-bg { opacity: 0.18; }
+
+/* ─── GLOW ORBS ──────────────────────────────────────────── */
+.orb {
+  position: fixed; border-radius: 50%; filter: blur(90px);
+  pointer-events: none; z-index: 0;
+}
+.orb-1 { width: 500px; height: 500px; top: -100px; left: -100px; background: var(--glow1); animation: drift 12s ease-in-out infinite; }
+.orb-2 { width: 400px; height: 400px; bottom: 0; right: -80px; background: var(--glow2); animation: drift 16s ease-in-out infinite reverse; }
+@keyframes drift {
+  0%,100% { transform: translate(0,0); }
+  50% { transform: translate(40px, 30px); }
+}
+
+/* ─── NAVBAR ─────────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 5%;
+  height: 64px;
+  background: rgba(6,8,18,0.65);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.4s;
+}
+[data-theme="light"] nav { background: rgba(240,242,255,0.75); }
+.logo {
+  font-family: var(--font-ui); font-weight: 800; font-size: 1.3rem;
+  background: linear-gradient(135deg, var(--accent1), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+.nav-links { display: flex; gap: 32px; list-style: none; }
+.nav-links a {
+  color: var(--muted); text-decoration: none; font-size: 0.9rem;
+  font-weight: 600; letter-spacing: 0.3px;
+  transition: color 0.2s;
+  position: relative;
+}
+.nav-links a::after {
+  content: ''; position: absolute; bottom: -3px; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  transform: scaleX(0); transition: transform 0.25s;
+}
+.nav-links a:hover { color: var(--text); }
+.nav-links a:hover::after { transform: scaleX(1); }
+#theme-toggle {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px;
+  width: 40px; height: 36px; cursor: pointer; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+#theme-toggle:hover { border-color: var(--border-hi); background: rgba(91,140,255,0.1); }
+
+/* ─── SECTIONS ───────────────────────────────────────────── */
+section { position: relative; z-index: 1; }
+
+/* ─── HERO ───────────────────────────────────────────────── */
+#hero {
+  min-height: 100vh;
+  display: flex; align-items: center;
+  padding: 100px 5% 60px;
+  gap: 60px;
+}
+.hero-left { flex: 1; max-width: 560px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(91,140,255,0.1); border: 1px solid rgba(91,140,255,0.3);
+  color: var(--accent1); border-radius: 100px;
+  padding: 6px 14px; font-size: 0.78rem; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 28px;
+  animation: fadeUp 0.7s ease both;
+}
+.badge-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent1); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+h1 {
+  font-size: clamp(3rem, 6vw, 5.5rem);
+  font-weight: 800; line-height: 1.05;
+  letter-spacing: -2px;
+  animation: fadeUp 0.7s 0.1s ease both;
+}
+.grad-text {
+  background: linear-gradient(135deg, var(--accent1) 0%, var(--accent2) 50%, var(--accent3) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+.hero-sub {
+  margin-top: 20px; font-size: 1.1rem; color: var(--muted);
+  line-height: 1.7; max-width: 440px;
+  animation: fadeUp 0.7s 0.2s ease both;
+}
+.hero-btn {
+  margin-top: 36px; display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 32px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent1), var(--accent2));
+  color: #fff; font-family: var(--font-ui); font-weight: 700; font-size: 1rem;
+  border: none; cursor: pointer; text-decoration: none;
+  box-shadow: 0 0 30px rgba(91,140,255,0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  animation: fadeUp 0.7s 0.3s ease both;
+}
+.hero-btn:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(91,140,255,0.6); }
+.pills {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px;
+  animation: fadeUp 0.7s 0.4s ease both;
+}
+.pill {
+  padding: 7px 16px; border-radius: 100px;
+  border: 1px solid var(--border); background: var(--surface);
+  font-size: 0.8rem; color: var(--muted); font-weight: 600;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.pill:hover { border-color: var(--border-hi); color: var(--text); background: rgba(91,140,255,0.08); }
+
+/* code mockup */
+.hero-right {
+  flex: 1; max-width: 560px;
+  display: flex; justify-content: center;
+  animation: fadeUp 0.7s 0.25s ease both;
+}
+.mockup-card {
+  width: 100%; max-width: 520px;
+  background: rgba(8,12,26,0.85);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(91,140,255,0.15), 0 0 120px rgba(168,85,247,0.08);
+  backdrop-filter: blur(20px);
+}
+[data-theme="light"] .mockup-card { background: rgba(255,255,255,0.85); }
+.mockup-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+}
+[data-theme="light"] .mockup-bar { background: rgba(0,0,0,0.04); }
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.dot-r { background: #ff5f57; }
+.dot-y { background: #febc2e; }
+.dot-g { background: #28c840; }
+.mockup-title { margin-left: auto; margin-right: auto; font-size: 0.75rem; color: var(--muted); font-family: var(--font-code); }
+.mockup-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.mockup-pane { padding: 16px; font-family: var(--font-code); font-size: 0.72rem; line-height: 1.7; }
+.mockup-pane:first-child { border-right: 1px solid var(--border); }
+.pane-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.tok-kw { color: #a78bfa; }
+.tok-fn { color: #60a5fa; }
+.tok-str { color: #34d399; }
+.tok-cm { color: #4b5563; }
+.tok-num { color: #fb923c; }
+.tok-op { color: #94a3b8; }
+.mockup-divider {
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: rgba(91,140,255,0.05);
+}
+.arrow-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, rgba(91,140,255,0.2), rgba(168,85,247,0.2));
+  border: 1px solid var(--border-hi); border-radius: 100px;
+  padding: 5px 14px; font-size: 0.72rem; color: var(--accent1); font-weight: 700;
+}
+
+/* ─── HOW IT WORKS ───────────────────────────────────────── */
+#how {
+  padding: 100px 5%;
+}
+.section-tag {
+  text-align: center; margin-bottom: 16px;
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--accent1);
+}
+.section-title {
+  text-align: center; font-size: clamp(1.8rem, 3vw, 2.8rem);
+  font-weight: 800; letter-spacing: -1px; margin-bottom: 60px;
+}
+.steps {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+  max-width: 960px; margin: 0 auto;
+  position: relative;
+}
+.steps::before {
+  content: '';
+  position: absolute; top: 48px; left: calc(16.67% + 12px); right: calc(16.67% + 12px); height: 1px;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2), var(--accent3));
+  opacity: 0.35;
+}
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+  animation: fadeUp 0.6s ease both;
+}
+.step-card:nth-child(2) { animation-delay: 0.1s; }
+.step-card:nth-child(3) { animation-delay: 0.2s; }
+.step-card:hover {
+  border-color: var(--border-hi);
+  transform: translateY(-6px);
+  box-shadow: 0 20px 60px rgba(91,140,255,0.12);
+}
+.step-num {
+  width: 48px; height: 48px; border-radius: 14px; margin: 0 auto 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; font-weight: 800; font-family: var(--font-code);
+}
+.step-1 .step-num { background: rgba(91,140,255,0.15); color: var(--accent1); border: 1px solid rgba(91,140,255,0.3); }
+.step-2 .step-num { background: rgba(168,85,247,0.15); color: var(--accent2); border: 1px solid rgba(168,85,247,0.3); }
+.step-3 .step-num { background: rgba(6,182,212,0.15); color: var(--accent3); border: 1px solid rgba(6,182,212,0.3); }
+.step-icon { font-size: 2rem; margin-bottom: 12px; }
+.step-card h3 { font-weight: 700; font-size: 1rem; margin-bottom: 10px; }
+.step-card p { color: var(--muted); font-size: 0.88rem; line-height: 1.65; }
+
+/* ─── CONVERTER ──────────────────────────────────────────── */
+#converter {
+  padding: 100px 5% 140px;
+}
+.controls-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  max-width: 1100px; margin: 0 auto 20px;
+}
+.credits-badge {
+  margin-left: auto;
+  background: rgba(91,140,255,0.1); border: 1px solid rgba(91,140,255,0.3);
+  color: var(--accent1); padding: 8px 16px; border-radius: 8px;
+  font-size: 0.82rem; font-weight: 700; font-family: var(--font-code);
+  white-space: nowrap;
+}
+.credits-badge.warn { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171; }
+select {
+  appearance: none;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 36px 10px 14px; border-radius: 10px;
+  font-family: var(--font-ui); font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  transition: border-color 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+select:focus { outline: none; border-color: var(--border-hi); }
+.swap-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); width: 38px; height: 38px; border-radius: 10px;
+  cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.swap-btn:hover { border-color: var(--border-hi); color: var(--accent1); transform: rotate(180deg); }
+.btn-convert {
+  padding: 10px 24px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent1), var(--accent2));
+  color: #fff; font-family: var(--font-ui); font-weight: 700; font-size: 0.9rem;
+  border: none; cursor: pointer;
+  box-shadow: 0 0 20px rgba(91,140,255,0.3);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-convert:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 35px rgba(91,140,255,0.5); }
+.btn-convert:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-outline {
+  padding: 10px 18px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--font-ui); font-weight: 600; font-size: 0.88rem;
+  cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 7px;
+}
+.btn-outline:hover { border-color: var(--border-hi); background: rgba(91,140,255,0.07); }
+
+.editor-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+  max-width: 1100px; margin: 0 auto;
+}
+.editor-panel {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 0 40px rgba(0,0,0,0.3);
+  transition: border-color 0.25s;
+  min-height: 420px;
+}
+.editor-panel:focus-within { border-color: var(--border-hi); box-shadow: 0 0 0 1px var(--border-hi), 0 0 40px rgba(91,140,255,0.1); }
+.editor-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+}
+[data-theme="light"] .editor-header { background: rgba(0,0,0,0.04); }
+.editor-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.editor-lang { font-family: var(--font-code); font-size: 0.75rem; color: var(--accent1); background: rgba(91,140,255,0.1); padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(91,140,255,0.25); }
+textarea#code-input {
+  flex: 1; background: transparent; border: none; outline: none; resize: none;
+  color: var(--text); font-family: var(--font-code); font-size: 0.85rem; line-height: 1.7;
+  padding: 16px; tab-size: 2;
+}
+textarea#code-input::placeholder { color: var(--muted); }
+#code-output-wrap {
+  flex: 1; overflow-y: auto; padding: 16px; position: relative;
+}
+#code-output {
+  font-family: var(--font-code); font-size: 0.85rem; line-height: 1.7;
+  color: var(--text); white-space: pre-wrap; word-break: break-word;
+  min-height: 100%;
+}
+.output-placeholder {
+  color: var(--muted); font-family: var(--font-code); font-size: 0.85rem; font-style: italic;
+}
+.loading-ring {
+  display: none; align-items: center; gap: 12px;
+  padding: 16px; font-size: 0.85rem; color: var(--muted); font-family: var(--font-code);
+}
+.loading-ring.active { display: flex; }
+.spinner {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent1);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── LIMIT MSG ──────────────────────────────────────────── */
+.limit-msg {
+  display: none; text-align: center; margin-top: 16px;
+  color: #f87171; font-size: 0.88rem; font-weight: 600;
+  font-family: var(--font-code);
+}
+.limit-msg.show { display: block; }
+
+/* ─── FOOTER ─────────────────────────────────────────────── */
+footer {
+  position: relative; z-index: 1;
+  border-top: 1px solid var(--border);
+  padding: 32px 5%;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  background: rgba(0,0,0,0.15);
+}
+[data-theme="light"] footer { background: rgba(0,0,0,0.03); }
+.footer-logo {
+  font-family: var(--font-ui); font-weight: 800; font-size: 1.1rem;
+  background: linear-gradient(135deg, var(--accent1), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+footer p { color: var(--muted); font-size: 0.82rem; }
+
+/* ─── ANIMATIONS ─────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── RESPONSIVE ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  #hero { flex-direction: column; padding-top: 100px; }
+  .hero-right { width: 100%; }
+  .editor-grid { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: 1fr; }
+  .steps::before { display: none; }
+  .nav-links { display: none; }
+}
+
+/* ─── COPY SUCCESS ───────────────────────────────────────── */
+.copy-success { color: #34d399 !important; }
+
+/* ─── SCROLLBAR ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<!-- ─── NAVBAR ──────────────────────────────────────────────── -->
+<nav>
+  <div class="logo">SyntaxShift</div>
+  <ul class="nav-links">
+    <li><a href="#hero">Home</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#converter">Converter</a></li>
+  </ul>
+  <button id="theme-toggle" title="Toggle theme">🌙</button>
+</nav>
+
+<!-- ─── HERO ─────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="hero-left">
+    <div class="badge"><span class="badge-dot"></span>Powered by DeepSeek R1 via OpenRouter</div>
+    <h1>
+      Convert<br>
+      Code<br>
+      <span class="grad-text">Instantly</span><br>
+      with AI
+    </h1>
+    <p class="hero-sub">Translate code between programming languages with speed, accuracy, and clean output.</p>
+    <a href="#converter" class="hero-btn">🚀 Try Now</a>
+    <div class="pills">
+      <span class="pill">⚡ AI Code Translation</span>
+      <span class="pill">🛡️ Syntax Safe</span>
+      <span class="pill">🚀 Fast Output</span>
+      <span class="pill">🧑‍💻 Developer Friendly</span>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <div class="mockup-card">
+      <div class="mockup-bar">
+        <span class="dot dot-r"></span>
+        <span class="dot dot-y"></span>
+        <span class="dot dot-g"></span>
+        <span class="mockup-title">syntaxshift — code converter</span>
+      </div>
+      <div class="mockup-body">
+        <div class="mockup-pane">
+          <div class="pane-label">Python</div>
+          <div><span class="tok-kw">def</span> <span class="tok-fn">fibonacci</span><span class="tok-op">(</span>n<span class="tok-op">):</span></div>
+          <div>&nbsp;&nbsp;<span class="tok-kw">if</span> n <span class="tok-op">&lt;=</span> <span class="tok-num">1</span><span class="tok-op">:</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="tok-kw">return</span> n</div>
+          <div>&nbsp;&nbsp;<span class="tok-kw">return</span> <span class="tok-fn">fibonacci</span><span class="tok-op">(</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;n<span class="tok-op">-</span><span class="tok-num">1</span><span class="tok-op">) +</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="tok-fn">fibonacci</span><span class="tok-op">(</span>n<span class="tok-op">-</span><span class="tok-num">2</span><span class="tok-op">)</span></div>
+          <div>&nbsp;</div>
+          <div><span class="tok-cm"># Test it out</span></div>
+          <div><span class="tok-fn">print</span><span class="tok-op">(</span><span class="tok-fn">fibonacci</span><span class="tok-op">(</span><span class="tok-num">10</span><span class="tok-op">))</span></div>
+        </div>
+        <div class="mockup-pane">
+          <div class="pane-label">JavaScript</div>
+          <div><span class="tok-kw">function</span> <span class="tok-fn">fibonacci</span><span class="tok-op">(</span>n<span class="tok-op">) {</span></div>
+          <div>&nbsp;&nbsp;<span class="tok-kw">if</span> <span class="tok-op">(</span>n <span class="tok-op">&lt;=</span> <span class="tok-num">1</span><span class="tok-op">)</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="tok-kw">return</span> n<span class="tok-op">;</span></div>
+          <div>&nbsp;&nbsp;<span class="tok-kw">return</span> <span class="tok-fn">fibonacci</span><span class="tok-op">(</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;n<span class="tok-op">-</span><span class="tok-num">1</span><span class="tok-op">) +</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="tok-fn">fibonacci</span><span class="tok-op">(</span>n<span class="tok-op">-</span><span class="tok-num">2</span><span class="tok-op">);</span></div>
+          <div><span class="tok-op">}</span></div>
+          <div>&nbsp;</div>
+          <div><span class="tok-cm">// Test it out</span></div>
+          <div><span class="tok-fn">console</span><span class="tok-op">.</span><span class="tok-fn">log</span><span class="tok-op">(</span><span class="tok-fn">fibonacci</span><span class="tok-op">(</span><span class="tok-num">10</span><span class="tok-op">));</span></div>
+        </div>
+      </div>
+      <div class="mockup-divider">
+        <span class="arrow-chip">✦ AI Converted · 0.3s</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── HOW IT WORKS ──────────────────────────────────────────── -->
+<section id="how">
+  <div class="section-tag">Process</div>
+  <h2 class="section-title">How It <span class="grad-text">Works</span></h2>
+  <div class="steps">
+    <div class="step-card step-1">
+      <div class="step-num">01</div>
+      <div class="step-icon">📋</div>
+      <h3>Paste Your Code</h3>
+      <p>Drop any snippet into the input box. Supports all major languages and syntax styles out of the box.</p>
+    </div>
+    <div class="step-card step-2">
+      <div class="step-num">02</div>
+      <div class="step-icon">🎯</div>
+      <h3>Choose Languages</h3>
+      <p>Select your source and target languages from the dropdown. Swap them with one click anytime.</p>
+    </div>
+    <div class="step-card step-3">
+      <div class="step-num">03</div>
+      <div class="step-icon">⚡</div>
+      <h3>Get AI Output</h3>
+      <p>Hit Convert and watch Gemini AI translate your code instantly — clean, readable, production-ready.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CONVERTER ─────────────────────────────────────────────── -->
+<section id="converter">
+  <div class="section-tag">Core Feature</div>
+  <h2 class="section-title">Code <span class="grad-text">Converter</span></h2>
+
+  <!-- controls -->
+  <div class="controls-row">
+    <select id="src-lang">
+      <option value="Python">Python</option>
+      <option value="JavaScript">JavaScript</option>
+      <option value="TypeScript">TypeScript</option>
+      <option value="Java">Java</option>
+      <option value="C">C</option>
+      <option value="C++">C++</option>
+      <option value="C#">C#</option>
+      <option value="Go">Go</option>
+      <option value="Rust">Rust</option>
+      <option value="Ruby">Ruby</option>
+      <option value="PHP">PHP</option>
+      <option value="Swift">Swift</option>
+      <option value="Kotlin">Kotlin</option>
+      <option value="Dart">Dart</option>
+      <option value="R">R</option>
+      <option value="Bash">Bash</option>
+    </select>
+
+    <button class="swap-btn" id="swap-btn" title="Swap languages">⇄</button>
+
+    <select id="tgt-lang">
+      <option value="JavaScript">JavaScript</option>
+      <option value="Python">Python</option>
+      <option value="TypeScript">TypeScript</option>
+      <option value="Java">Java</option>
+      <option value="C">C</option>
+      <option value="C++">C++</option>
+      <option value="C#">C#</option>
+      <option value="Go">Go</option>
+      <option value="Rust">Rust</option>
+      <option value="Ruby">Ruby</option>
+      <option value="PHP">PHP</option>
+      <option value="Swift">Swift</option>
+      <option value="Kotlin">Kotlin</option>
+      <option value="Dart">Dart</option>
+      <option value="R">R</option>
+      <option value="Bash">Bash</option>
+    </select>
+
+    <button class="btn-convert" id="convert-btn">
+      <span id="convert-label">⚡ Convert</span>
+    </button>
+
+    <button class="btn-outline" id="copy-btn">📋 Copy Output</button>
+    <button class="btn-outline" id="clear-btn">🗑 Clear</button>
+
+    <div class="credits-badge" id="credits-badge">Credits Left: 20</div>
+  </div>
+
+  <!-- editor grid -->
+  <div class="editor-grid">
+    <!-- INPUT -->
+    <div class="editor-panel">
+      <div class="editor-header">
+        <span class="editor-label">Input</span>
+        <span class="editor-lang" id="src-badge">Python</span>
+      </div>
+      <textarea id="code-input" placeholder="Paste your code here..."></textarea>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="editor-panel">
+      <div class="editor-header">
+        <span class="editor-label">Output</span>
+        <span class="editor-lang" id="tgt-badge">JavaScript</span>
+      </div>
+      <div id="code-output-wrap">
+        <div class="loading-ring" id="loading-ring">
+          <div class="spinner"></div>
+          <span>Converting with Gemini AI…</span>
+        </div>
+        <pre id="code-output"><span class="output-placeholder">Your converted code will appear here after clicking Convert.</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="limit-msg" id="limit-msg">🚫 Credit limit reached. You've used all 20 conversions.</div>
+</section>
+
+<!-- ─── FOOTER ─────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-logo">SyntaxShift</div>
+  <p>Built with DeepSeek R1 via OpenRouter · Dark-mode code conversion tool</p>
+  <p>© 2025 SyntaxShift. All rights reserved.</p>
+</footer>
+
+<script>
+// ─── THEME ───────────────────────────────────────────────────
+const themeBtn = document.getElementById('theme-toggle');
+const applyTheme = (t) => {
+  document.documentElement.setAttribute('data-theme', t);
+  themeBtn.textContent = t === 'dark' ? '🌙' : '☀️';
+  localStorage.setItem('ss-theme', t);
+};
+const saved = localStorage.getItem('ss-theme') || 'dark';
+applyTheme(saved);
+themeBtn.addEventListener('click', () => {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+
+// ─── CREDITS ─────────────────────────────────────────────────
+let credits = parseInt(localStorage.getItem('ss-credits') ?? '20', 10);
+const creditsBadge = document.getElementById('credits-badge');
+const convertBtn   = document.getElementById('convert-btn');
+const limitMsg     = document.getElementById('limit-msg');
+
+const updateCredits = () => {
+  creditsBadge.textContent = `Credits Left: ${credits}`;
+  creditsBadge.classList.toggle('warn', credits <= 5);
+  convertBtn.disabled = credits <= 0;
+  limitMsg.classList.toggle('show', credits <= 0);
+  localStorage.setItem('ss-credits', credits);
+};
+updateCredits();
+
+// ─── LANGUAGE LABELS ─────────────────────────────────────────
+const srcSel  = document.getElementById('src-lang');
+const tgtSel  = document.getElementById('tgt-lang');
+const srcBadge = document.getElementById('src-badge');
+const tgtBadge = document.getElementById('tgt-badge');
+
+srcSel.addEventListener('change', () => srcBadge.textContent = srcSel.value);
+tgtSel.addEventListener('change', () => tgtBadge.textContent = tgtSel.value);
+
+// ─── SWAP ─────────────────────────────────────────────────────
+document.getElementById('swap-btn').addEventListener('click', () => {
+  [srcSel.value, tgtSel.value] = [tgtSel.value, srcSel.value];
+  srcBadge.textContent = srcSel.value;
+  tgtBadge.textContent = tgtSel.value;
+});
+
+// ─── CONVERT ─────────────────────────────────────────────────
+const inputEl  = document.getElementById('code-input');
+const outputEl = document.getElementById('code-output');
+const loading  = document.getElementById('loading-ring');
+
+convertBtn.addEventListener('click', async () => {
+  const code = inputEl.value.trim();
+  if (!code) { alert('Please paste some code first.'); return; }
+  if (credits <= 0) return;
+
+  const src = srcSel.value;
+  const tgt = tgtSel.value;
+
+  // UI state
+  loading.classList.add('active');
+  outputEl.style.display = 'none';
+  convertBtn.disabled = true;
+
+  try {
+    // Calls our own serverless function at /api/convert, which holds
+    // the OpenRouter key safely on the server (see api/convert.js).
+    const res = await fetch('/api/convert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ src, tgt, code })
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+
+    const text = data?.result || '';
+    // Strip markdown code fences if model returns them anyway
+    const clean = text.replace(/^```[\w]*\n?/gm, '').replace(/```$/gm, '').trim();
+    outputEl.textContent = clean;
+    credits--;
+    updateCredits();
+
+  } catch (e) {
+    outputEl.textContent = `// ❌ Error: ${e.message}`;
+  } finally {
+    loading.classList.remove('active');
+    outputEl.style.display = 'block';
+    convertBtn.disabled = credits <= 0;
+  }
+});
+
+// ─── COPY ─────────────────────────────────────────────────────
+document.getElementById('copy-btn').addEventListener('click', () => {
+  const text = outputEl.textContent;
+  if (!text || outputEl.querySelector('.output-placeholder')) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✅ Copied!';
+    btn.classList.add('copy-success');
+    setTimeout(() => { btn.textContent = '📋 Copy Output'; btn.classList.remove('copy-success'); }, 2000);
+  });
+});
+
+// ─── CLEAR ────────────────────────────────────────────────────
+document.getElementById('clear-btn').addEventListener('click', () => {
+  inputEl.value = '';
+  outputEl.innerHTML = '<span class="output-placeholder">Your converted code will appear here after clicking Convert.</span>';
+});
+
+// ─── SCROLL REVEAL (IntersectionObserver) ────────────────────
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.style.animationPlayState = 'running';
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.step-card, .mockup-card').forEach(el => {
+  el.style.animationPlayState = 'paused';
+  observer.observe(el);
+});
+</script>
+</body>
+</html>

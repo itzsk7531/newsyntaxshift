@@ -42,7 +42,7 @@ export default async function handler(req, res) {
         'X-Title': 'SyntaxShift'
       },
       body: JSON.stringify({
-        model: 'google/gemma-3-27b-it:free',
+        model: 'openrouter/free',
         messages: [
           {
             role: 'user',
